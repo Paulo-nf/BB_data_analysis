@@ -87,6 +87,7 @@ bb_2/
 - Pandas, NumPy
 - Scikit-learn (para modelagem)
 - Matplotlib/Seaborn (para visualizações)
+- Streamlit
 
 ## Contribuição
 
@@ -96,10 +97,12 @@ bb_2/
 4. Push para a branch: `git push origin feature/nova-feature`.
 5. Abra um Pull Request.
 
-## Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
-
 ## Contato
 
-Para dúvidas ou sugestões, entre em contato com a equipe do Squad 19.
+Para dúvidas ou sugestões, entre em contato com a equipe do Squad 19:
+- Marcello Augusto MGT-21
+- Paulo Nery Paulo-nf
+- Luis Felipe LuizMXavier
+- Pedro Sol
+- Luiz Henrique
+- Matheus Conolly
