@@ -1131,7 +1131,7 @@ elif menu == "7. Previsão e Resultados do Modelo":
 
     st.title("🤖 Previsão de Inadimplência")
 
-    from config import MODELS_DIR as _MODELS_DIR, RF_MODELS_DIR as _RF_DIR, GBM_MODELS_DIR as _GBM_DIR
+    from config import MODELS_DIR as _MODELS_DIR, RF_MODELS_DIR as _RF_DIR, GBM_MODELS_DIR as _GBM_DIR, XGB_MODELS_DIR as _XGB_DIR
 
     def _require(path):
         if not path.exists():
@@ -1169,10 +1169,14 @@ elif menu == "7. Previsão e Resultados do Modelo":
     def load_model_seg_metricas():
         rf_met  = joblib.load(_RF_DIR  / 'metrics.joblib')
         gbm_met = joblib.load(_GBM_DIR / 'metrics.joblib')
-        return {
+        xgb_met = joblib.load(_XGB_DIR / 'metrics.joblib') if (_XGB_DIR / 'metrics.joblib').exists() else None
+        result = {
             'RF Segmentado':  rf_met['seg_metricas'],
             'GBM Segmentado': gbm_met['seg_metricas'],
         }
+        if xgb_met:
+            result['XGB Segmentado'] = xgb_met['seg_metricas']
+        return result
 
     @st.cache_resource
     def load_seg_model(seg, sec):
@@ -1519,18 +1523,20 @@ elif menu == "7. Previsão e Resultados do Modelo":
     with aba_modelo:
         st.subheader("Comparativo de Modelos e Análise de Resultados")
         st.markdown("""
-        Esta aba documenta os quatro experimentos realizados e justifica a escolha
+        Esta aba documenta os seis modelos treinados e justifica a escolha
         do modelo em produção.
         """)
 
         # ── Métricas ao vivo — todos os modelos ─────────────────────────
         st.subheader("📊 Métricas no Conjunto de Teste")
-        cols_met = st.columns(len(metricas))
         best_roc = max(v["roc"] for v in metricas.values())
-        for col_m, (nome, vals) in zip(cols_met, metricas.items()):
-            is_best = vals["roc"] >= best_roc
-            delta = "🏆 melhor" if is_best else f"{(vals['roc'] - best_roc)*100:.2f}pp vs melhor"
-            col_m.metric(nome, f"ROC {vals['roc']:.4f}", delta, delta_color="normal" if is_best else "off")
+        _met_items = list(metricas.items())
+        for _row_items in [_met_items[:3], _met_items[3:]]:
+            _row_cols = st.columns(3)
+            for col_m, (nome, vals) in zip(_row_cols, _row_items):
+                is_best = vals["roc"] >= best_roc
+                delta = "🏆 melhor" if is_best else f"{(vals['roc'] - best_roc)*100:.2f}pp vs melhor"
+                col_m.metric(nome, f"ROC {vals['roc']:.4f}", delta, delta_color="normal" if is_best else "off")
 
         # ── Curvas ROC — reais (conjunto de teste) ───────────────────────
         st.subheader("📈 Curvas ROC — Todos os Modelos")
@@ -1539,6 +1545,8 @@ elif menu == "7. Previsão e Resultados do Modelo":
             "GBM Segmentado": ("#d62728", "--"),
             "RF Global":      ("#1f77b4", "-"),
             "RF Segmentado":  ("#1f77b4", "--"),
+            "XGB Global":     ("#2ca02c", "-"),
+            "XGB Segmentado": ("#2ca02c", "--"),
         }
         fig_roc, ax_roc = plt.subplots(figsize=(9, 5))
         try:
@@ -1564,12 +1572,13 @@ elif menu == "7. Previsão e Resultados do Modelo":
             f"({pos_rate*100:.1f}%). Uma curva útil fica acima desta linha."
         )
         # ── PR-AUC metrics cards ──────────────────────────────────────────
-        cols_pr = st.columns(len(metricas))
         best_pr = max(v["pr"] for v in metricas.values())
-        for col_p, (nome, vals) in zip(cols_pr, metricas.items()):
-            is_best_pr = vals["pr"] >= best_pr
-            delta_pr = "🏆 melhor" if is_best_pr else f"{(vals['pr'] - best_pr)*100:.2f}pp vs melhor"
-            col_p.metric(nome, f"PR-AUC {vals['pr']:.4f}", delta_pr, delta_color="normal" if is_best_pr else "off")
+        for _row_items in [_met_items[:3], _met_items[3:]]:
+            _row_cols = st.columns(3)
+            for col_p, (nome, vals) in zip(_row_cols, _row_items):
+                is_best_pr = vals["pr"] >= best_pr
+                delta_pr = "🏆 melhor" if is_best_pr else f"{(vals['pr'] - best_pr)*100:.2f}pp vs melhor"
+                col_p.metric(nome, f"PR-AUC {vals['pr']:.4f}", delta_pr, delta_color="normal" if is_best_pr else "off")
 
         fig_pr, ax_pr = plt.subplots(figsize=(9, 5))
         try:
@@ -1596,10 +1605,12 @@ elif menu == "7. Previsão e Resultados do Modelo":
 
         _best = max(metricas, key=lambda k: metricas[k]["roc"])
         _best_roc = metricas[_best]["roc"]
-        _gbm_g_roc = metricas.get("GBM Global", {}).get("roc", 0)
-        _rf_g_roc  = metricas.get("RF Global",  {}).get("roc", 0)
-        _gbm_s_roc = metricas.get("GBM Segmentado", {}).get("roc", 0)
-        _rf_s_roc  = metricas.get("RF Segmentado",  {}).get("roc", 0)
+        _gbm_g_roc = metricas.get("GBM Global",     {}).get("roc", 0)
+        _rf_g_roc  = metricas.get("RF Global",       {}).get("roc", 0)
+        _xgb_g_roc = metricas.get("XGB Global",      {}).get("roc", 0)
+        _gbm_s_roc = metricas.get("GBM Segmentado",  {}).get("roc", 0)
+        _rf_s_roc  = metricas.get("RF Segmentado",   {}).get("roc", 0)
+        _xgb_s_roc = metricas.get("XGB Segmentado",  {}).get("roc", 0)
 
         with st.expander("📊 Por que o ROC-AUC ficou entre 0,51 e 0,59?", expanded=True):
             st.markdown(f"""
@@ -1631,8 +1642,13 @@ generalização — especialmente para eventos raros ou combinações incomuns d
 
         with st.expander("⚡ Por que o GBM Global foi o melhor modelo?", expanded=True):
             st.markdown(f"""
-O **GBM Global** atingiu ROC {_gbm_g_roc:.4f} contra RF Global {_rf_g_roc:.4f} — uma
-diferença pequena mas consistente. Dois mecanismos explicam a superioridade do GBM:
+O **GBM Global** atingiu ROC {_gbm_g_roc:.4f} contra RF Global {_rf_g_roc:.4f} e
+XGB Global {_xgb_g_roc:.4f}. O XGBoost fica consistentemente ~0,03 abaixo dos outros dois,
+possivelmente por causa da regularização L2 padrão (`reg_lambda=1.0`) que não existe no
+HistGradientBoosting do sklearn — neste dataset, essa regularização adicional penaliza
+mais do que protege.
+
+Dois mecanismos explicam a superioridade do GBM (sklearn) sobre o RF:
 
 **1. Aprendizado sequencial vs. paralelo.**
 O Gradient Boosting treina árvores sequencialmente, cada uma corrigindo os erros da
@@ -1662,8 +1678,10 @@ produziu resultados **piores** do que um único modelo global em todas as combin
 |---|---|---|
 | GBM Global | {_gbm_g_roc:.4f} | {metricas.get("GBM Global", {}).get("pr", 0):.4f} |
 | RF Global | {_rf_g_roc:.4f} | {metricas.get("RF Global", {}).get("pr", 0):.4f} |
+| XGB Global | {_xgb_g_roc:.4f} | {metricas.get("XGB Global", {}).get("pr", 0):.4f} |
 | RF Segmentado | {_rf_s_roc:.4f} | {metricas.get("RF Segmentado", {}).get("pr", 0):.4f} |
 | GBM Segmentado | {_gbm_s_roc:.4f} | {metricas.get("GBM Segmentado", {}).get("pr", 0):.4f} |
+| XGB Segmentado | {_xgb_s_roc:.4f} | {metricas.get("XGB Segmentado", {}).get("pr", 0):.4f} |
 
 **Por quê?**
 
@@ -1846,7 +1864,7 @@ de elevar o ROC-AUC para a faixa 0,65-0,72 em portfólios similares na literatur
         _seg_col1, _seg_col2 = st.columns(2)
         _seg_modelo = _seg_col1.radio(
             "Modelo segmentado",
-            ["RF Segmentado", "GBM Segmentado"],
+            ["RF Segmentado", "GBM Segmentado", "XGB Segmentado"],
             horizontal=True,
         )
         _seg_metrica = _seg_col2.radio(
