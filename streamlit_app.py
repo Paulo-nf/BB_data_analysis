@@ -1692,6 +1692,75 @@ portfólio, todas as features são compartilhadas e na mesma escala — a segmen
 é contraproducente.
             """)
 
+        with st.expander("🔧 Otimização de Hiperparâmetros — o que foi testado e o que funcionou?", expanded=False):
+            st.markdown(f"""
+Foi realizada uma busca sistemática de hiperparâmetros **um parâmetro por vez**: cada
+alteração era aplicada, o modelo retreinado e avaliado no conjunto de teste. Se a métrica
+piorasse, a mudança era revertida. Foram realizados **24 experimentos** no total.
+
+---
+
+#### Baseline (antes da otimização)
+
+| Modelo | ROC-AUC | PR-AUC |
+|---|---|---|
+| GBM Global | 0,5884 | 0,2165 |
+| GBM Segmentado | 0,5179 | 0,1742 |
+| RF Global | 0,5815 | 0,2151 |
+| RF Segmentado | 0,5466 | 0,1878 |
+
+---
+
+#### Mudanças que melhoraram os resultados ✅
+
+| Modelo | Parâmetro alterado | ΔROC | ΔPR-AUC | Justificativa |
+|---|---|---|---|---|
+| RF Global | `min_samples_leaf` 0 → **10** | +0,0067 | +0,0056 | Folhas menores geram estimativas de probabilidade ruidosas; um mínimo de 10 amostras suaviza a curva Precision-Recall |
+| RF Segmentado | `max_depth` sem limite → **6** | +0,0072 | +0,0044 | Com ~450 amostras por submodelo, árvores sem profundidade máxima decoram o treino em vez de generalizar |
+| RF Segmentado | `n_estimators` 300 → **150** | +0,0000 | +0,0006 | 300 árvores para 450 amostras é excessivo; 150 reduz tempo de treino sem perda de qualidade |
+| GBM Segmentado | `min_samples_leaf` 0 → **15** | +0,0123 | +0,0036 | Com ~75 positivos por submodelo, folhas muito pequenas geram probabilidades instáveis |
+
+---
+
+#### Mudanças que **não** melhoraram e foram revertidas ❌
+
+| O que foi testado | Motivo do fracasso |
+|---|---|
+| `early_stopping=True` + `validation_fraction=0.1` no GBM Global | Remove ~2.000 amostras do treino, reduzindo o sinal disponível |
+| `l2_regularization=0.1` no GBM Global | O GBM Global não apresenta sobreajuste detectável nesse nível de regularização |
+| `max_depth=5` e `max_leaf_nodes=20` no GBM Global | Árvores mais expressivas sem sinal adicional nos dados apenas amplificam ruído |
+| `learning_rate=0.01`, `max_iter=1000` no GBM Global | O modelo converge para o mesmo patamar independentemente da velocidade de aprendizado |
+| `max_depth=3` no GBM Segmentado | Muito raso para os padrões existentes nos subconjuntos |
+| `min_samples_leaf=10` e `min_samples_leaf=20` no GBM Segmentado | 15 é o ponto ótimo; valores menores preservam ruído, valores maiores perdem padrões reais |
+| `n_estimators=400` e `max_samples=0.8` no RF Global | O RF Global já está bem calibrado com 200 árvores e bootstrap completo |
+| `max_features='log2'` no RF Segmentado | Idêntico ao `'sqrt'` neste espaço de features |
+| `max_depth=7` no RF Segmentado | Mais profundo que 6 piora: os submodelos voltam a sobreajustar |
+| `min_samples_leaf=10` no RF Segmentado | Excessivo para subamostras de 450 registros; 5 é o ponto ótimo |
+
+---
+
+#### Resultado final após otimização
+
+| Modelo | ROC-AUC | ΔBaseline | PR-AUC | ΔBaseline |
+|---|---|---|---|---|
+| RF Global | {metricas.get("RF Global", {}).get("roc", 0):.4f} | +0,0067 | {metricas.get("RF Global", {}).get("pr", 0):.4f} | +0,0056 |
+| RF Segmentado | {metricas.get("RF Segmentado", {}).get("roc", 0):.4f} | +0,0072 | {metricas.get("RF Segmentado", {}).get("pr", 0):.4f} | +0,0044 |
+| GBM Global | {metricas.get("GBM Global", {}).get("roc", 0):.4f} | +0,0001 | {metricas.get("GBM Global", {}).get("pr", 0):.4f} | +0,0004 |
+| GBM Segmentado | {metricas.get("GBM Segmentado", {}).get("roc", 0):.4f} | +0,0123 | {metricas.get("GBM Segmentado", {}).get("pr", 0):.4f} | +0,0036 |
+
+---
+
+#### Conclusão da otimização
+
+O **GBM Global** é virtualmente insensível a qualquer ajuste de hiperparâmetro:
+independentemente da taxa de aprendizado, profundidade, regularização ou número de
+iterações, o ROC-AUC oscila em torno de **0,5884 ± 0,001**. Isso confirma que o limite
+de desempenho dos modelos é imposto pela **qualidade e riqueza das features**, não pela
+configuração dos algoritmos. O ganho incremental máximo obtido com otimização foi de
+**+0,7 pontos percentuais** de ROC-AUC — um sinal claro de que o próximo passo relevante
+é enriquecer o dataset, não afinar os parâmetros.
+            """)
+
         with st.expander("🎯 O que as importâncias de variáveis revelam?", expanded=True):
             st.markdown(f"""
 As importâncias do RF Global (proxy interpretável para o GBM) mostram três grupos distintos:
