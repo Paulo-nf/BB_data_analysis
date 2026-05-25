@@ -1,108 +1,132 @@
-# Projeto de Análise de Dados e Previsão de Fraude/Inadimplência
+# Análise de Dados e Previsão de Inadimplência — Databridge Squad 19
 
 ## Descrição
 
-Este projeto visa analisar dados financeiros para identificar padrões de inadimplência, fraude e outros indicadores de risco. Utilizando uma arquitetura de dados em camadas (Bronze, Silver, Gold), o projeto processa dados brutos, realiza limpeza e transformação, e gera insights através de modelos preditivos.
+Projeto de análise de risco de crédito sobre dados sintéticos do portfólio Databridge Squad 19.
+Combina uma pipeline de dados em camadas (Bronze → Silver → Gold), análise exploratória em notebooks
+e um dashboard interativo em Streamlit com simulador de previsão de inadimplência em tempo real.
 
-### Objetivos Principais
-- **Previsão de Inadimplência**: Desenvolver um modelo para prever se um cliente será inadimplente com base no perfil da pessoa.
-- **Taxa de Aprovação por Região**: Analisar e calcular taxas de aprovação de crédito por diferentes regiões.
-- **Detecção de Outliers**: Identificar anomalias nos dados que podem indicar fraudes ou comportamentos atípicos.
-- **Análise de Performance do Sistema**: Avaliar o desempenho do sistema de crédito.
-- **Segmentação de Clientes**: Classificar clientes em segmentos para melhor targeting.
+## Objetivos
+
+- **Previsão de inadimplência** — 3 famílias de modelos (RF, GBM, XGBoost) com variantes global e segmentada
+- **Análise de risco ambiental** — cruzamento de índices de seca/inundação com inadimplência por segmento
+- **Detecção de fraude** — score de fraude e flags de alto risco
+- **Performance do sistema OCR** — métricas de qualidade documental no onboarding
+- **Segmentação de clientes** — perfil financeiro e comportamental por segmento
 
 ## Estrutura do Projeto
 
 ```
-bb_2/
-├── config.py                 # Arquivo de configuração
-├── README.md                 # Este arquivo
+BB_data_analysis/
+├── config.py                          # Constantes de Path (importar em vez de hardcode)
+├── streamlit_app.py                   # Dashboard (7 páginas)
+├── requirements.txt
 ├── data/
-│   ├── bronze/               # Dados brutos ingeridos
-│   │   └── bronze_databridge.csv
-│   ├── silver/               # Dados tratados e limpos
-│   │   └── silver_databridge.csv
-│   ├── gold/                 # Dados agregados e modelados
-│   │   ├── gold_fraude_casos_alto_risco.csv
-│   │   └── gold_fraude.csv
-│   ├── raw/                  # Dados originais
-│   │   ├── databridge_squad19_dictionary.csv
-│   │   └── databridge_squad19_sintetico.csv
-│   └── eda/                  # Dados para análise exploratória
-│       └── eda_databridge.csv
-├── notebooks/                # Notebooks Jupyter para análise
-│   ├── 01_bronze_ingestao.ipynb      # Ingestão de dados brutos
-│   ├── 02-silver_tratamento.ipynb    # Tratamento e limpeza
-│   ├── 03_eda.ipynb                  # Análise Exploratória de Dados
-│   ├── 04_gold_Fraudes.ipynb         # Modelagem para detecção de fraudes
-│   ├── 05_gold_Inadimplencia.ipynb   # Previsão de inadimplência
-│   ├── 06_gold_PerformanceSistema.ipynb  # Análise de performance
-│   └── 07_gold_SegmentoDeClientes.ipynb   # Segmentação de clientes
-└── output/                  # Saídas e resultados
+│   ├── raw/                           # Dados originais (não modificar)
+│   ├── bronze/                        # Dados ingeridos
+│   ├── silver/                        # Dados limpos e transformados
+│   └── gold/
+│       ├── gold_dashboard.csv         # Features completas para o dashboard
+│       └── gold_model.csv             # Features para treino (sem colunas de leakage)
+├── notebooks/
+│   ├── bronze_ingestao.ipynb          # Raw → Bronze
+│   ├── bronze_to_silver.ipynb         # Bronze → Silver
+│   ├── eda/
+│   │   ├── 03_eda.ipynb               # Análise exploratória geral
+│   │   ├── 04_gold_Fraudes.ipynb      # Análise de fraude
+│   │   ├── 05_gold_Inadimplencia.ipynb
+│   │   ├── 06_gold_PerformanceSistema.ipynb
+│   │   └── 07_gold_SegmentoDeClientes.ipynb
+│   ├── silver_to_gold_dashboard.ipynb # Silver → gold_dashboard.csv
+│   ├── silver_to_gold_model.ipynb     # Silver → gold_model.csv
+│   ├── train_rf.ipynb                 # Treina RF Global + RF Segmentado
+│   ├── train_gbm.ipynb                # Treina GBM Global + GBM Segmentado
+│   ├── train_xgb.ipynb                # Treina XGB Global + XGB Segmentado
+│   └── compare_models.ipynb           # Compara todos os 6 modelos → models/metrics.joblib
+└── models/
+    ├── rf/                            # Artefatos RF
+    ├── gbm/                           # Artefatos GBM
+    ├── xgb/                           # Artefatos XGBoost
+    └── metrics.joblib                 # Métricas combinadas (gerado pelo compare_models)
 ```
 
 ## Instalação
 
-1. Clone o repositório:
-   ```bash
-   git clone <url-do-repositorio>
-   cd bb_2
-   ```
+```bash
+git clone <url-do-repositorio>
+cd BB_data_analysis
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-2. Instale as dependências:
-   ```bash
-   pip install -r requirements.txt
-   ```
-   (Certifique-se de que o arquivo `requirements.txt` existe ou crie um com as bibliotecas necessárias, como pandas, numpy, scikit-learn, matplotlib, etc.)
+## Executar o Dashboard
 
-3. Configure o ambiente Python (se necessário):
-   - Use um ambiente virtual: `python -m venv env` e ative com `env\Scripts\activate` no Windows.
+```bash
+source venv/bin/activate
+streamlit run streamlit_app.py
+```
 
-## Uso
+Acesse em `http://localhost:8501`. O dashboard carrega `data/gold/gold_dashboard.csv` e os
+artefatos em `models/` — garanta que os notebooks de treino foram executados antes.
 
-1. **Ingestão de Dados**: Execute o notebook `01_bronze_ingestao.ipynb` para carregar dados brutos na camada Bronze.
+## Pipeline de Dados
 
-2. **Tratamento**: Use `02-silver_tratamento.ipynb` para limpar e transformar os dados na camada Silver.
+Execute os notebooks nesta ordem quando os dados brutos mudarem:
 
-3. **Análise Exploratória**: Realize EDA com `03_eda.ipynb` para entender os dados.
+```
+1. bronze_ingestao.ipynb
+2. bronze_to_silver.ipynb
+3. silver_to_gold_dashboard.ipynb   ← necessário para o dashboard
+4. silver_to_gold_model.ipynb       ← necessário para retreinar modelos
+```
 
-4. **Modelagem**:
-   - Fraudes: `04_gold_Fraudes.ipynb`
-   - Inadimplência: `05_gold_Inadimplencia.ipynb`
-   - Performance: `06_gold_PerformanceSistema.ipynb`
-   - Segmentação: `07_gold_SegmentoDeClientes.ipynb`
+## Treino dos Modelos
 
-5. Os resultados são salvos na pasta `output/` e na camada Gold.
+Execute em ordem após `silver_to_gold_model.ipynb`:
 
-## Dados
+```
+5. train_rf.ipynb
+6. train_gbm.ipynb
+7. train_xgb.ipynb
+8. compare_models.ipynb             ← gera models/metrics.joblib
+```
 
-- **Fonte**: Dados sintéticos do Databridge Squad 19.
-- **Dicionário**: `databridge_squad19_dictionary.csv` contém a descrição das variáveis.
-- **Processamento**: Segue arquitetura Medallion (Bronze → Silver → Gold).
+Cada notebook de treino exporta `global.joblib`, `metrics.joblib`, `seg_artifacts.joblib`
+e 42 submodelos em `seg/` para o diretório do respectivo modelo.
 
-## Tecnologias Utilizadas
+## Resultados dos Modelos
 
-- Python
-- Jupyter Notebooks
-- Pandas, NumPy
-- Scikit-learn (para modelagem)
-- Matplotlib/Seaborn (para visualizações)
-- Streamlit
+Avaliação no conjunto de teste (hold-out estratificado de 20%, ~5.000 registros):
 
-## Contribuição
+| Modelo | ROC-AUC | PR-AUC |
+|---|---|---|
+| GBM Global | 0,5885 | 0,2169 |
+| RF Global | 0,5882 | 0,2207 |
+| XGB Global | 0,5611 | 0,2046 |
+| RF Segmentado | 0,5538 | 0,1922 |
+| GBM Segmentado | 0,5302 | 0,1778 |
+| XGB Segmentado | 0,5237 | 0,1726 |
 
-1. Faça um fork do projeto.
-2. Crie uma branch para sua feature: `git checkout -b feature/nova-feature`.
-3. Commit suas mudanças: `git commit -m 'Adiciona nova feature'`.
-4. Push para a branch: `git push origin feature/nova-feature`.
-5. Abra um Pull Request.
+**Dataset:** 24.974 contratos, 16,6% de inadimplência, 33 features.
+O teto de desempenho (~0,59 ROC) é imposto pela ausência de preditores fortes
+(histórico de pagamentos, score de bureau externo), não pelos algoritmos.
 
-## Contato
+## Tecnologias
 
-Para dúvidas ou sugestões, entre em contato com a equipe do Squad 19:
-- Marcello Augusto MGT-21
-- Paulo Nery Paulo-nf
-- Luis Felipe LuizMXavier
+| Categoria | Bibliotecas |
+|---|---|
+| Pipeline de dados | pandas, numpy |
+| Modelos | scikit-learn (RF, HistGradientBoosting), xgboost |
+| Dashboard | Streamlit, Plotly, Matplotlib, Seaborn |
+| Notebooks | Jupyter Lab |
+| Persistência | joblib |
+
+## Equipe — Squad 19
+
+- Marcello Augusto (MGT-21)
+- Paulo Nery (Paulo-nf)
+- Luis Felipe (LuizMXavier)
 - Pedro Sol
 - Luiz Henrique
 - Matheus Conolly
