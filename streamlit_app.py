@@ -1,12 +1,24 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
+import os
+
+import joblib
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-import seaborn as sns
+import numpy as np
+import pandas as pd
 import plotly.express as px
-import os
+import seaborn as sns
+import streamlit as st
+from matplotlib.patches import Patch
 from scipy.stats import ks_2samp
+
+from config import (
+    GOLD_DASHBOARD,
+    MODELS_DIR as _MODELS_DIR,
+    RF_MODELS_DIR as _RF_DIR,
+    GBM_MODELS_DIR as _GBM_DIR,
+    XGB_MODELS_DIR as _XGB_DIR,
+)
 
 # ==========================================
 # Configurações Iniciais do Streamlit
@@ -18,28 +30,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-@st.cache_resource
-def apply_global_styles():
-    sns.set_theme(style="whitegrid", palette="muted", font_scale=1.0)
-    plt.rcParams.update({
-        "figure.dpi": 100,
-        "figure.facecolor": "white",
-        "axes.facecolor": "white",
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "axes.titlesize": 12,
-        "axes.titleweight": "bold",
-        "axes.labelsize": 10,
-    })
-
-apply_global_styles()
+sns.set_theme(style="whitegrid", palette="muted", font_scale=1.0)
+plt.rcParams.update({
+    "figure.dpi": 100,
+    "figure.facecolor": "white",
+    "axes.facecolor": "white",
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.titlesize": 12,
+    "axes.titleweight": "bold",
+    "axes.labelsize": 10,
+})
 
 # ==========================================
 # Carregamento e Processamento de Dados
 # ==========================================
 @st.cache_data
 def load_data():
-    from config import GOLD_DASHBOARD
     return pd.read_csv(GOLD_DASHBOARD)
 
 
@@ -63,6 +70,8 @@ menu = st.sidebar.radio(
         "5. Problema proposta - pilares",
         "6. Risco Ambiental × Segmento",
         "7. Previsão e Resultados do Modelo",
+        "8. Perdas por Inadimplência",
+        "9. Simulação de Impacto do Modelo",
     ]
 )
 
@@ -214,6 +223,10 @@ if menu == "1. Visão por Segmentos":
     }
     col_alvo = mapa_metrica[metrica_sel]
 
+    if col_alvo == "ratio" and "ratio" not in df.columns:
+        df = df.copy()
+        df["ratio"] = df["credit_requested_value"] / df["income_declared"].replace(0, float("nan"))
+
     # FIX: use 'with' context manager to guarantee figure is always closed,
     # even if an exception is raised mid-render.
     fig4, ax4 = plt.subplots(figsize=(16, 7))
@@ -293,7 +306,7 @@ if menu == "1. Visão por Segmentos":
         return pd.DataFrame([{
             "Comparação": f"{g1} vs {g2}",
             "Estatística KS": round(stat, 4),
-            "p-valor": f"{p_val:.4f}",
+            "p-valor": round(p_val, 4),
             "Conclusão (α=0.05)": mesma_dist
         }])
 
@@ -359,7 +372,7 @@ if menu == "1. Visão por Segmentos":
 
             if not res_renda.empty:
                 st.dataframe(res_renda, hide_index=True, use_container_width=True)
-                p_val_renda = float(res_renda["p-valor"].iloc[0])
+                p_val_renda = res_renda["p-valor"].iloc[0]
                 if p_val_renda < 0.05:
                     st.error(f"**Análise:** As distribuições de **Renda Declarada** entre {seg1} e {seg2} são estatisticamente **diferentes**.")
                 else:
@@ -374,7 +387,7 @@ if menu == "1. Visão por Segmentos":
 
             if not res_credito.empty:
                 st.dataframe(res_credito, hide_index=True, use_container_width=True)
-                p_val_credito = float(res_credito["p-valor"].iloc[0])
+                p_val_credito = res_credito["p-valor"].iloc[0]
                 if p_val_credito < 0.05:
                     st.error(f"**Análise:** As distribuições de **Crédito Solicitado** entre {seg1} e {seg2} são estatisticamente **diferentes**.")
                 else:
@@ -405,18 +418,20 @@ elif menu == "2. Performance do Sistema (OCR)":
 
     fig_sys, axes_sys = plt.subplots(1, 3, figsize=(16, 6))
     try:
-        val_apr = [acerto_aprovado/len(aprovados)*100, erro_aprovado/len(aprovados)*100]
-        axes_sys[0].bar(["APPROVE"], [val_apr[0]], color="#4caf50", width=0.5)
-        axes_sys[0].bar(["APPROVE"], [val_apr[1]], bottom=[val_apr[0]], color="#f44336", width=0.5)
+        if len(aprovados) > 0:
+            val_apr = [acerto_aprovado/len(aprovados)*100, erro_aprovado/len(aprovados)*100]
+            axes_sys[0].bar(["APPROVE"], [val_apr[0]], color="#4caf50", width=0.5)
+            axes_sys[0].bar(["APPROVE"], [val_apr[1]], bottom=[val_apr[0]], color="#f44336", width=0.5)
+            axes_sys[0].legend(["Acertou (pagou)", "Errou (inadimpliu)"], loc="upper right", fontsize=9)
         axes_sys[0].set_title(f"APPROVE ({len(aprovados):,})")
         axes_sys[0].set_ylabel("% dos casos")
-        axes_sys[0].legend(["Acertou (pagou)", "Errou (inadimpliu)"], loc="upper right", fontsize=9)
 
-        val_rev = [acerto_revisao/len(em_revisao)*100, falso_alarme/len(em_revisao)*100]
-        axes_sys[1].bar(["REVIEW"], [val_rev[0]], color="#4caf50", width=0.5)
-        axes_sys[1].bar(["REVIEW"], [val_rev[1]], bottom=[val_rev[0]], color="#ff9800", width=0.5)
+        if len(em_revisao) > 0:
+            val_rev = [acerto_revisao/len(em_revisao)*100, falso_alarme/len(em_revisao)*100]
+            axes_sys[1].bar(["REVIEW"], [val_rev[0]], color="#4caf50", width=0.5)
+            axes_sys[1].bar(["REVIEW"], [val_rev[1]], bottom=[val_rev[0]], color="#ff9800", width=0.5)
+            axes_sys[1].legend(["Acertou (risco real)", "Falso alarme (pagou)"], loc="upper right", fontsize=9)
         axes_sys[1].set_title(f"REVIEW ({len(em_revisao):,})")
-        axes_sys[1].legend(["Acertou (risco real)", "Falso alarme (pagou)"], loc="upper right", fontsize=9)
 
         categorias = ["Aprovado/Pagou", "Aprovado/Inadimpliu", "Revisão/Risco Real", "Revisão/Falso Alarme"]
         valores_pizza = [acerto_aprovado, erro_aprovado, acerto_revisao, falso_alarme]
@@ -683,29 +698,7 @@ elif menu == "5. Problema proposta - pilares":
         df_corr_final = pd.DataFrame(res_corr)
         st.dataframe(df_corr_final.style.background_gradient(cmap="Reds"), use_container_width=True, hide_index=True)
 
-    st.markdown("---")
-    st.subheader("💡 Importância de Variáveis")
-    # TODO: replace hardcoded values with computed feature importances
-    features = ['Renda', 'LTV', 'Risco Ambiental', 'Score OCR', 'Match de PII']
-    imp = [0.28, 0.22, 0.18, 0.17, 0.15]
-
-    fig_imp = px.bar(
-        x=imp, y=features, orientation='h',
-        title="<b>O que mais impacta a Inadimplência?</b>",
-        labels={'x': 'Peso no Modelo', 'y': 'Variável'},
-        color_discrete_sequence=['#3498db']
-    )
-    fig_imp.update_layout(
-        yaxis={'categoryorder': 'total ascending'},
-        plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=20, r=20, t=40, b=20)
-    )
-    st.plotly_chart(fig_imp, use_container_width=True)
-    # NOTE: Plotly figures are garbage-collected automatically; no manual close needed.
-
 elif menu == "6. Risco Ambiental × Segmento":
-    import matplotlib.colors as mcolors
-
     st.title("🌿 Risco Ambiental × Segmento de Cliente")
 
     st.markdown("""
@@ -727,16 +720,18 @@ elif menu == "6. Risco Ambiental × Segmento":
         delta_color="inverse",
         help=f"Representa {n_alto:,} registros ({n_alto/len(df)*100:.1f}% do total)"
     )
+    _agro_medio_alto = df[(df["customer_segment"] == "AGRO_MEDIO") & (df["env_risk_level"] == "ALTO")]["default_12m"].mean() * 100
     col3.metric(
         "Pior célula (AGRO_MEDIO + ALTO)",
-        "33.3%",
-        f"+{33.3 - taxa_geral:.1f}pp vs média",
+        f"{_agro_medio_alto:.1f}%",
+        f"{_agro_medio_alto - taxa_geral:+.1f}pp vs média",
         delta_color="inverse"
     )
+    _seca_severa = df[df["drought_spi"] < -1.5]["default_12m"].mean() * 100
     col4.metric(
         "Seca severa (SPI < -1.5)",
-        "23.2%",
-        f"+{23.2 - taxa_geral:.1f}pp vs média",
+        f"{_seca_severa:.1f}%",
+        f"{_seca_severa - taxa_geral:+.1f}pp vs média",
         delta_color="inverse"
     )
 
@@ -1127,11 +1122,7 @@ elif menu == "6. Risco Ambiental × Segmento":
         """)
 
 elif menu == "7. Previsão e Resultados do Modelo":
-    import joblib
-
     st.title("🤖 Previsão de Inadimplência")
-
-    from config import MODELS_DIR as _MODELS_DIR, RF_MODELS_DIR as _RF_DIR, GBM_MODELS_DIR as _GBM_DIR, XGB_MODELS_DIR as _XGB_DIR
 
     def _require(path):
         if not path.exists():
@@ -1275,10 +1266,10 @@ elif menu == "7. Previsão e Resultados do Modelo":
                     min_value=0.0, max_value=1.0, value=0.300, step=0.001,
                     format="%.3f",
                 )
-                ltv = credit_requested_value / max(income_declared, 1)
-                st.metric(
-                    "LTV (calculado)",
-                    f"{ltv:.2f}",
+                ltv = st.number_input(
+                    "LTV",
+                    min_value=0.0, max_value=100.0, value=round(credit_requested_value / max(income_declared, 1), 4),
+                    step=0.01, format="%.4f",
                     help="Crédito solicitado ÷ Renda declarada. Acima de 1.0 = crédito supera a renda.",
                 )
                 collateral_type = st.selectbox(
@@ -1355,17 +1346,17 @@ elif menu == "7. Previsão e Resultados do Modelo":
                     "Motor OCR", ["AZURE_OCR", "GOOGLE_VISION", "TESSERACT"]
                 )
                 ocr_confidence = st.number_input(
-                    "Confiança OCR", min_value=0.147, max_value=0.996, value=0.701,
+                    "Confiança OCR", min_value=0.0, max_value=1.0, value=0.701,
                     step=0.001, format="%.3f",
                 )
 
             with col_e:
                 match_score = st.number_input(
-                    "Score de correspondência (match)", min_value=0.097, max_value=0.990,
+                    "Score de correspondência (match)", min_value=0.0, max_value=1.0,
                     value=0.666, step=0.001, format="%.3f",
                 )
                 data_quality_score = st.number_input(
-                    "Score de qualidade dos dados", min_value=0.426, max_value=0.936,
+                    "Score de qualidade dos dados", min_value=0.0, max_value=1.0,
                     value=0.719, step=0.001, format="%.3f",
                 )
                 pii_detected = st.checkbox("PII detectado no documento", value=False)
@@ -1375,7 +1366,7 @@ elif menu == "7. Previsão e Resultados do Modelo":
                     "Violações de regras", min_value=0, max_value=9, value=1, step=1,
                 )
                 document_image_quality = st.number_input(
-                    "Qualidade da imagem do documento", min_value=0.213, max_value=0.994,
+                    "Qualidade da imagem do documento", min_value=0.0, max_value=1.0,
                     value=0.726, step=0.001, format="%.3f",
                 )
                 join_status = st.selectbox(
@@ -1481,13 +1472,14 @@ elif menu == "7. Previsão e Resultados do Modelo":
                 label_risco = "🔴 Risco Alto"
                 detalhe    = "Acima do percentil 75 do portfólio. Recomenda-se revisão manual."
 
+            baseline_rate = df["default_12m"].mean()
             col_res1, col_res2, col_res3 = st.columns([1, 1, 2])
             col_res1.metric("Probabilidade estimada", f"{proba*100:.1f}%")
-            col_res2.metric("Baseline do portfólio",  "16.6%")
+            col_res2.metric("Baseline do portfólio",  f"{baseline_rate*100:.1f}%")
             col_res3.metric(
                 "Classificação de risco",
                 label_risco,
-                f"{(proba - 0.166)*100:+.1f}pp vs baseline",
+                f"{(proba - baseline_rate)*100:+.1f}pp vs baseline",
                 delta_color="inverse",
             )
             st.caption(detalhe)
@@ -1845,7 +1837,6 @@ de elevar o ROC-AUC para a faixa 0,65-0,72 em portfólios similares na literatur
             ax_imp.set_xlabel("Importância (Gini)")
             ax_imp.set_title("Top 15 variáveis mais importantes (RF Global)", fontsize=11)
 
-            from matplotlib.patches import Patch
             legend_items = [
                 Patch(color="#378ADD", label="Financeiro"),
                 Patch(color="#1D9E75", label="Ambiental"),
@@ -1931,3 +1922,197 @@ de elevar o ROC-AUC para a faixa 0,65-0,72 em portfólios similares na literatur
    capturar com as features atuais.
             """)
 
+
+# ==========================================
+# PÁGINA 8: PERDAS POR INADIMPLÊNCIA
+# ==========================================
+elif menu == "8. Perdas por Inadimplência":
+    st.title("💸 Perdas por Inadimplência")
+
+    inadimplentes = df[df["default_12m"] == 1]
+    adimplentes_t8 = df[df["default_12m"] == 0]
+    total_perda = inadimplentes["credit_requested_value"].sum()
+    total_recebimentos = adimplentes_t8["credit_requested_value"].sum()
+    pct_perda = (len(inadimplentes) / len(df) * 100) if len(df) > 0 else 0
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total de Perdas", f"R$ {total_perda:,.0f}")
+    col2.metric("Total de Carteira Adimplente", f"R$ {total_recebimentos:,.0f}")
+    col3.metric("% da Carteira Total", f"{pct_perda:.1f}%")
+
+    st.markdown("---")
+    st.subheader("Perdas × Carteira Adimplente por Segmento")
+    comparativo = pd.DataFrame({
+        "Segmento": df["customer_segment"].cat.categories if hasattr(df["customer_segment"], "cat") else df["customer_segment"].unique(),
+    }).set_index("Segmento")
+    comparativo["Carteira Adimplente"] = adimplentes_t8.groupby("customer_segment", observed=True)["credit_requested_value"].sum()
+    comparativo["Perdas"]       = inadimplentes.groupby("customer_segment", observed=True)["credit_requested_value"].sum()
+    comparativo = comparativo.fillna(0).sort_values("Perdas", ascending=False).reset_index()
+
+    melted = comparativo.melt(id_vars="Segmento", value_vars=["Carteira Adimplente", "Perdas"], var_name="Tipo", value_name="Valor (R$)")
+    melted["Label"] = melted["Valor (R$)"].apply(lambda v: f"R${v/1e6:.1f}M")
+
+    fig_cmp = px.bar(
+        melted,
+        x="Valor (R$)",
+        y="Segmento",
+        color="Tipo",
+        barmode="group",
+        orientation="h",
+        color_discrete_map={"Carteira Adimplente": "#2ecc71", "Perdas": "#e74c3c"},
+        text="Label",
+    )
+    fig_cmp.update_layout(legend_title_text="", legend=dict(orientation="h", y=1.08))
+    st.plotly_chart(fig_cmp, use_container_width=True)
+
+# ==========================================
+# PÁGINA 9: SIMULAÇÃO DE IMPACTO DO MODELO
+# ==========================================
+elif menu == "9. Simulação de Impacto do Modelo":
+    st.title("💰 Simulação de Redução de Perdas com o Modelo")
+
+    st.markdown("""
+    Escolha um ponto na curva Precision-Recall do melhor modelo e veja em tempo real
+    quanto o banco pode economizar ao operar naquele limiar de decisão.
+    """)
+
+    @st.cache_resource(show_spinner="Carregando métricas do modelo…")
+    def _load_metrics_p9():
+        p = _MODELS_DIR / "metrics.joblib"
+        return joblib.load(p) if p.exists() else None
+
+    metrics_data = _load_metrics_p9()
+    if metrics_data is None:
+        st.error("Arquivo `models/metrics.joblib` não encontrado. Execute `compare_models.ipynb` para gerá-lo.")
+        st.stop()
+
+    metricas  = metrics_data["metricas"]
+    pr_curves = metrics_data["pr_curves"]
+
+    # Best model by PR-AUC (most relevant for imbalanced classes)
+    best_model = max(metricas, key=lambda k: metricas[k]["pr"])
+    rec_raw, prec_raw = pr_curves[best_model]
+
+    # Sort by recall ascending for np.interp
+    rec_arr  = np.array(rec_raw)
+    prec_arr = np.array(prec_raw)
+    sort_idx = np.argsort(rec_arr)
+    rec_arr  = rec_arr[sort_idx]
+    prec_arr = prec_arr[sort_idx]
+
+    # Portfolio constants
+    defaulters        = df[df["default_12m"] == 1]
+    good_clients      = df[df["default_12m"] == 0]
+    n_defaulters      = len(defaulters)
+    total_losses      = defaulters["credit_requested_value"].sum()
+    avg_credit_good   = good_clients["credit_requested_value"].mean()
+    total_good_credit = good_clients["credit_requested_value"].sum()
+
+    # FP count at every recall point on the PR curve
+    with np.errstate(divide="ignore", invalid="ignore"):
+        fp_arr = np.where(prec_arr > 0, rec_arr * n_defaulters * (1 - prec_arr) / prec_arr, 0.0)
+
+    # Margin slider first — ideal recall depends on it
+    sl_col1, sl_col2 = st.columns([3, 1])
+    with sl_col2:
+        margin_rate = st.slider(
+            "Margem de lucro sobre crédito (%)",
+            min_value=1, max_value=100, value=20, step=1,
+            help="Lucro que o banco obtém sobre cada contrato aprovado. "
+                 "Recusar um bom cliente custa apenas essa margem, não o valor total do empréstimo.",
+        ) / 100.0
+
+    # Optimal recall = point that maximises profit given current margin
+    profit_arr   = rec_arr * total_losses - fp_arr * avg_credit_good * margin_rate
+    ideal_idx    = int(np.argmax(profit_arr))
+    ideal_recall = float(rec_arr[ideal_idx])
+
+    # Reset recall slider to new optimal whenever margin changes
+    if st.session_state.get("_p9_prev_margin") != margin_rate:
+        st.session_state["_p9_recall"] = ideal_recall
+        st.session_state["_p9_prev_margin"] = margin_rate
+
+    with sl_col1:
+        recall_val = st.slider(
+            "Recall (sensibilidade do modelo)",
+            min_value=0.0,
+            max_value=float(rec_arr.max()),
+            value=ideal_recall,
+            step=0.01,
+            key="_p9_recall",
+            help="Fração dos inadimplentes reais identificados corretamente neste limiar.",
+        )
+
+    st.info(
+        f"**Melhor modelo:** {best_model} (PR-AUC = {metricas[best_model]['pr']:.4f})  |  "
+        f"**Recall ótimo:** {ideal_recall:.2f} — maximiza lucro com margem de {margin_rate*100:.0f}%"
+    )
+
+    # Interpolate precision and profit at selected recall (single source of truth)
+    prec_val           = float(np.interp(recall_val, rec_arr, prec_arr))
+    profit_at_selected = float(np.interp(recall_val, rec_arr, profit_arr))
+
+    # Derived display quantities (cards)
+    n_good_clients = len(good_clients)
+    tp = recall_val * n_defaulters
+    if prec_val > 0:
+        flagged = tp / prec_val
+        fp      = min(flagged - tp, n_good_clients)  # can't reject more good clients than exist
+    else:
+        flagged = 0.0
+        fp      = 0.0
+
+    losses_avoided  = recall_val * total_losses
+    revenue_at_risk = fp * avg_credit_good * margin_rate
+
+    prec_col, _ = st.columns([1, 3])
+    prec_col.metric("Precisão neste ponto", f"{prec_val:.1%}")
+
+    st.markdown("")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(
+        "Perdas evitadas",
+        f"R$ {losses_avoided:,.0f}",
+        f"{recall_val:.1%} redução de perdas",
+    )
+    total_expected_earnings = total_good_credit * margin_rate
+    pct_earnings_lost = (revenue_at_risk / total_expected_earnings * 100) if total_expected_earnings > 0 else 0.0
+    col2.metric(
+        "Margem perdida (bons clientes rejeitados)",
+        f"R$ {revenue_at_risk:,.0f}",
+        f"-{pct_earnings_lost:.1f}% redução de ganhos",
+        delta_color="normal",
+    )
+    col3.metric(
+        "💰 Lucro com o Modelo",
+        f"R$ {profit_at_selected:,.0f}",
+        f"Perdas evitadas − margem perdida",
+        delta_color="normal" if profit_at_selected >= 0 else "inverse",
+    )
+
+    st.markdown("---")
+
+    df_profit = pd.DataFrame({"Sensibilidade (Recall)": rec_arr, "Lucro (R$)": profit_arr})
+    fig_profit = px.line(
+        df_profit, x="Sensibilidade (Recall)", y="Lucro (R$)",
+        title="<b>Lucro do Modelo por Sensibilidade</b>",
+        color_discrete_sequence=["#1f77b4"],
+    )
+    fig_profit.add_hline(y=0, line_color="gray", line_width=0.8)
+    fig_profit.add_scatter(
+        x=[ideal_recall], y=[float(np.interp(ideal_recall, rec_arr, profit_arr))],
+        mode="markers", marker=dict(size=13, color="#2ecc71", symbol="star"),
+        name=f"Ponto ótimo (recall={ideal_recall:.2f})",
+    )
+    fig_profit.add_scatter(
+        x=[recall_val], y=[profit_at_selected],
+        mode="markers", marker=dict(size=12, color="#e74c3c", symbol="circle"),
+        name=f"Ponto selecionado (recall={recall_val:.2f})",
+    )
+    fig_profit.update_layout(
+        xaxis=dict(range=[0, 1], title="Sensibilidade (Recall)"),
+        yaxis=dict(title="Lucro (R$)", tickformat=",.0f"),
+        legend=dict(orientation="h", y=-0.2),
+    )
+    st.plotly_chart(fig_profit, use_container_width=True)
