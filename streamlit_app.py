@@ -56,6 +56,23 @@ except Exception as e:
     st.error(f"Erro ao carregar os dados: {e}")
     st.stop()
 
+
+def _require(path):
+    if not path.exists():
+        st.error(
+            f"Modelo não encontrado: `{path}`. "
+            "Execute `notebooks/train_gbm.ipynb` e `notebooks/train_rf.ipynb` para gerá-los."
+        )
+        st.stop()
+
+
+@st.cache_resource(show_spinner="Carregando métricas…")
+def load_metrics():
+    p = _MODELS_DIR / 'metrics.joblib'
+    _require(p)
+    return joblib.load(p)
+
+
 # ==========================================
 # Menu Lateral (Sidebar)
 # ==========================================
@@ -1124,14 +1141,6 @@ elif menu == "6. Risco Ambiental × Segmento":
 elif menu == "7. Previsão e Resultados do Modelo":
     st.title("🤖 Previsão de Inadimplência")
 
-    def _require(path):
-        if not path.exists():
-            st.error(
-                f"Modelo não encontrado: `{path}`. "
-                "Execute `notebooks/train_gbm.ipynb` e `notebooks/train_rf.ipynb` para gerá-los."
-            )
-            st.stop()
-
     @st.cache_resource(show_spinner="Carregando GBM Global…")
     def load_gbm_global():
         p = _GBM_DIR / 'global.joblib'
@@ -1141,12 +1150,6 @@ elif menu == "7. Previsão e Resultados do Modelo":
     @st.cache_resource(show_spinner="Carregando RF Global…")
     def load_rf_global():
         p = _RF_DIR / 'global.joblib'
-        _require(p)
-        return joblib.load(p)
-
-    @st.cache_resource(show_spinner="Carregando métricas…")
-    def load_metrics():
-        p = _MODELS_DIR / 'metrics.joblib'
         _require(p)
         return joblib.load(p)
 
@@ -1169,7 +1172,7 @@ elif menu == "7. Previsão e Resultados do Modelo":
             result['XGB Segmentado'] = xgb_met['seg_metricas']
         return result
 
-    @st.cache_resource
+    @st.cache_resource(max_entries=10)
     def load_seg_model(seg, sec):
         p = _RF_DIR / 'seg' / f'{seg}_{sec}.joblib'
         if not p.exists():
@@ -1976,15 +1979,7 @@ elif menu == "9. Simulação de Impacto do Modelo":
     quanto o banco pode economizar ao operar naquele limiar de decisão.
     """)
 
-    @st.cache_resource(show_spinner="Carregando métricas do modelo…")
-    def _load_metrics_p9():
-        p = _MODELS_DIR / "metrics.joblib"
-        return joblib.load(p) if p.exists() else None
-
-    metrics_data = _load_metrics_p9()
-    if metrics_data is None:
-        st.error("Arquivo `models/metrics.joblib` não encontrado. Execute `compare_models.ipynb` para gerá-lo.")
-        st.stop()
+    metrics_data = load_metrics()
 
     metricas  = metrics_data["metricas"]
     pr_curves = metrics_data["pr_curves"]
