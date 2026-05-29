@@ -185,12 +185,12 @@ if menu == "1. Visão por Segmentos":
     cores_renda = sns.color_palette("Blues_d", len(dados_renda))
     axes3[0].barh(dados_renda.index, dados_renda["renda_media"], color=cores_renda, edgecolor="white")
     axes3[0].set_title("Renda Média Declarada")
-    axes3[0].xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x:,.0f}"))
+    axes3[0].xaxis.set_major_formatter(mticker.StrMethodFormatter("R${x:,.0f}"))
 
     cores_credito = sns.color_palette("Oranges_d", len(dados_renda))
     axes3[1].barh(dados_renda.index, dados_renda["valor_medio"], color=cores_credito, edgecolor="white")
     axes3[1].set_title("Crédito Médio Solicitado")
-    axes3[1].xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x:,.0f}"))
+    axes3[1].xaxis.set_major_formatter(mticker.StrMethodFormatter("R${x:,.0f}"))
 
     dados3 = resumo.copy()
     dados3["ratio"] = dados3["valor_medio"] / dados3["renda_media"]
@@ -292,7 +292,7 @@ if menu == "1. Visão por Segmentos":
         ax4.grid(axis='y', linestyle='--', alpha=0.5)
 
         if col_alvo in ["income_declared", "credit_requested_value"]:
-            ax4.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x:,.0f}"))
+            ax4.yaxis.set_major_formatter(mticker.StrMethodFormatter("R${x:,.0f}"))
 
         ax4.legend(title="Segmentos Ativos", bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True)
 
@@ -375,8 +375,8 @@ if menu == "1. Visão por Segmentos":
                 )
                 ax_comp.set_xlabel("Renda Declarada (R$)")
                 ax_comp.set_ylabel("Crédito Solicitado (R$)")
-                ax_comp.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
-                ax_comp.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+                ax_comp.xaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
+                ax_comp.yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
                 st.pyplot(fig_comp)
             finally:
                 plt.close(fig_comp)
