@@ -1979,6 +1979,29 @@ elif menu == "9. Simulação de Impacto do Modelo":
     quanto o banco pode economizar ao operar naquele limiar de decisão.
     """)
 
+    # Segment / sector filter — defines the portfolio subset used in every calculation below
+    TODOS_SEG = "Todos os segmentos"
+    TODOS_SEC = "Todos os setores"
+    seg_opcoes = [TODOS_SEG] + sorted(df["customer_segment"].dropna().unique().tolist())
+    sec_opcoes = [TODOS_SEC] + sorted(df["industry_sector"].dropna().unique().tolist())
+
+    f_col1, f_col2 = st.columns(2)
+    sel_segmento = f_col1.selectbox("Segmento do cliente", seg_opcoes)
+    sel_setor    = f_col2.selectbox("Setor da indústria", sec_opcoes)
+
+    df_p9 = df
+    if sel_segmento != TODOS_SEG:
+        df_p9 = df_p9[df_p9["customer_segment"] == sel_segmento]
+    if sel_setor != TODOS_SEC:
+        df_p9 = df_p9[df_p9["industry_sector"] == sel_setor]
+
+    if df_p9["default_12m"].sum() == 0 or len(df_p9) == 0:
+        st.warning(
+            "Não há inadimplentes nessa combinação de segmento e setor — "
+            "escolha outra combinação para simular o impacto."
+        )
+        st.stop()
+
     metrics_data = load_metrics()
 
     metricas  = metrics_data["metricas"]
@@ -1995,9 +2018,9 @@ elif menu == "9. Simulação de Impacto do Modelo":
     rec_arr  = rec_arr[sort_idx]
     prec_arr = prec_arr[sort_idx]
 
-    # Portfolio constants
-    defaulters        = df[df["default_12m"] == 1]
-    good_clients      = df[df["default_12m"] == 0]
+    # Portfolio constants (restricted to the selected segment/sector)
+    defaulters        = df_p9[df_p9["default_12m"] == 1]
+    good_clients      = df_p9[df_p9["default_12m"] == 0]
     n_defaulters      = len(defaulters)
     total_losses      = defaulters["credit_requested_value"].sum()
     avg_credit_good   = good_clients["credit_requested_value"].mean()
@@ -2022,10 +2045,11 @@ elif menu == "9. Simulação de Impacto do Modelo":
     ideal_idx    = int(np.argmax(profit_arr))
     ideal_recall = float(rec_arr[ideal_idx])
 
-    # Reset recall slider to new optimal whenever margin changes
-    if st.session_state.get("_p9_prev_margin") != margin_rate:
+    # Reset recall slider to new optimal whenever margin or the selected subset changes
+    _p9_context = (margin_rate, sel_segmento, sel_setor)
+    if st.session_state.get("_p9_prev_ctx") != _p9_context:
         st.session_state["_p9_recall"] = ideal_recall
-        st.session_state["_p9_prev_margin"] = margin_rate
+        st.session_state["_p9_prev_ctx"] = _p9_context
 
     with sl_col1:
         recall_val = st.slider(
