@@ -77,20 +77,62 @@ def load_metrics():
 # Menu Lateral (Sidebar)
 # ==========================================
 st.sidebar.title("📊 Navegação")
+
+# Render the two section-header options (1st and 5th radio rows) as inert
+# labels: no radio circle, not clickable. Scoped to the sidebar so the inline
+# radios on page 7 are untouched.
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(1),
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(5) {
+        pointer-events: none;
+        opacity: 0.6;
+        font-weight: 700;
+        margin-top: 0.4rem;
+    }
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(1) > div:first-child,
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:nth-of-type(5) > div:first-child {
+        display: none;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+_HDR_MODELO = "──── Modelo ────"
+_HDR_ANALISES = "──── Análises ────"
+
+# Section headers (─── … ───) sit inline as radio options; selecting one
+# jumps to its group's first page (see remap below). The underlying option
+# values keep their original numbering so the `menu ==` dispatch is untouched;
+# `format_func` strips the number for display.
+_menu_options = [
+    _HDR_MODELO,
+    "Previsão",
+    "Impacto do Modelo",
+    "Resultados do Modelo",
+    _HDR_ANALISES,
+    "Perdas por Inadimplência",
+    "Visão por Segmentos",
+    "Performance do Sistema (OCR)",
+    "Inadimplência",
+    "Risco de Fraude",
+    "Problema proposta - pilares",
+    "Risco Ambiental × Segmento",
+]
+
 menu = st.sidebar.radio(
     "Selecione a Visão:",
-    [
-        "1. Visão por Segmentos",
-        "2. Performance do Sistema (OCR)",
-        "3. Inadimplência",
-        "4. Risco de Fraude",
-        "5. Problema proposta - pilares",
-        "6. Risco Ambiental × Segmento",
-        "7. Previsão e Resultados do Modelo",
-        "8. Perdas por Inadimplência",
-        "9. Simulação de Impacto do Modelo",
-    ]
+    _menu_options,
+    index=1,  # default to "Previsão"
 )
+
+# A header was clicked → open the first page of that section.
+if menu == _HDR_MODELO:
+    menu = "Previsão"
+elif menu == _HDR_ANALISES:
+    menu = "Perdas por Inadimplência"
 
 st.sidebar.markdown("---")
 st.sidebar.info(f"**Total de Registros:** {len(df):,}")
@@ -98,7 +140,7 @@ st.sidebar.info(f"**Total de Registros:** {len(df):,}")
 # ==========================================
 # PÁGINA 1: VISÃO POR SEGMENTOS
 # ==========================================
-if menu == "1. Visão por Segmentos":
+if menu == "Visão por Segmentos":
     st.title("👥 Visão por Segmentos de Cliente")
 
     resumo = (
@@ -388,7 +430,7 @@ if menu == "1. Visão por Segmentos":
             res_renda = calcular_ks_direto(df_comp, "grupo_comparacao", seg1, seg2, "income_declared")
 
             if not res_renda.empty:
-                st.dataframe(res_renda, hide_index=True, use_container_width=True)
+                st.dataframe(res_renda, hide_index=True, width='stretch')
                 p_val_renda = res_renda["p-valor"].iloc[0]
                 if p_val_renda < 0.05:
                     st.error(f"**Análise:** As distribuições de **Renda Declarada** entre {seg1} e {seg2} são estatisticamente **diferentes**.")
@@ -403,7 +445,7 @@ if menu == "1. Visão por Segmentos":
             res_credito = calcular_ks_direto(df_comp, "grupo_comparacao", seg1, seg2, "credit_requested_value")
 
             if not res_credito.empty:
-                st.dataframe(res_credito, hide_index=True, use_container_width=True)
+                st.dataframe(res_credito, hide_index=True, width='stretch')
                 p_val_credito = res_credito["p-valor"].iloc[0]
                 if p_val_credito < 0.05:
                     st.error(f"**Análise:** As distribuições de **Crédito Solicitado** entre {seg1} e {seg2} são estatisticamente **diferentes**.")
@@ -415,7 +457,7 @@ if menu == "1. Visão por Segmentos":
 # ==========================================
 # PÁGINA 2: PERFORMANCE DO SISTEMA
 # ==========================================
-elif menu == "2. Performance do Sistema (OCR)":
+elif menu == "Performance do Sistema (OCR)":
     st.title("⚙️ Performance do Sistema e Motores OCR")
 
     aprovados = df[df["final_decision"] == "APPROVE"]
@@ -502,7 +544,7 @@ elif menu == "2. Performance do Sistema (OCR)":
 # ==========================================
 # PÁGINA 3: INADIMPLÊNCIA
 # ==========================================
-elif menu == "3. Inadimplência":
+elif menu == "Inadimplência":
     st.title("💸 Análise de Inadimplência (Default 12m)")
 
     taxa_geral = df["default_12m"].mean() * 100
@@ -564,7 +606,7 @@ elif menu == "3. Inadimplência":
 # ==========================================
 # PÁGINA 4: RISCO DE FRAUDE
 # ==========================================
-elif menu == "4. Risco de Fraude":
+elif menu == "Risco de Fraude":
     st.title("🚨 Análise e Scoring de Risco de Fraude")
 
     COR_BAIXO, COR_MEDIO, COR_ALTO = "#4caf50", "#ff9800", "#f44336"
@@ -616,12 +658,12 @@ elif menu == "4. Risco de Fraude":
     colunas_exibir = ["customer_segment", "final_decision", "fraude_score", "ocr_engine", "text_language", "rule_violations"]
     colunas_validas = [c for c in colunas_exibir if c in casos_alto_risco.columns]
 
-    st.dataframe(casos_alto_risco[colunas_validas], use_container_width=True)
+    st.dataframe(casos_alto_risco[colunas_validas], width='stretch')
 
 # ==========================================
 # PÁGINA 5: PROBLEMA PROPOSTA - PILARES
 # ==========================================
-elif menu == "5. Problema proposta - pilares":
+elif menu == "Problema proposta - pilares":
     st.title("🏛️ Análise dos Pilares de Risco (Problema Proposto)")
 
     st.markdown("""
@@ -713,9 +755,9 @@ elif menu == "5. Problema proposta - pilares":
 
     if res_corr:
         df_corr_final = pd.DataFrame(res_corr)
-        st.dataframe(df_corr_final.style.background_gradient(cmap="Reds"), use_container_width=True, hide_index=True)
+        st.dataframe(df_corr_final.style.background_gradient(cmap="Reds"), width='stretch', hide_index=True)
 
-elif menu == "6. Risco Ambiental × Segmento":
+elif menu == "Risco Ambiental × Segmento":
     st.title("🌿 Risco Ambiental × Segmento de Cliente")
 
     st.markdown("""
@@ -1109,7 +1151,7 @@ elif menu == "6. Risco Ambiental × Segmento":
         delta_color="inverse"
     )
 
-    st.dataframe(df_exibir, use_container_width=True, height=350)
+    st.dataframe(df_exibir, width='stretch', height=350)
 
     with st.expander("📌 Recomendações para o time de crédito", expanded=True):
         st.markdown(f"""
@@ -1138,7 +1180,7 @@ elif menu == "6. Risco Ambiental × Segmento":
         permitiria antecipar deteriorações da carteira.
         """)
 
-elif menu == "7. Previsão e Resultados do Modelo":
+elif menu in ("Previsão", "Resultados do Modelo"):
     st.title("🤖 Previsão de Inadimplência")
 
     @st.cache_resource(show_spinner="Carregando GBM Global…")
@@ -1198,16 +1240,10 @@ elif menu == "7. Previsão e Resultados do Modelo":
     pr_curves    = metrics_art['pr_curves']
     pos_rate     = metrics_art.get('pos_rate', 0.166)
 
-    # ── Abas ────────────────────────────────────────────────────────────────
-    aba_pred, aba_modelo = st.tabs([
-        "🔮 Simulador de Previsão",
-        "📊 Resultados do Modelo",
-    ])
-
     # ====================================================================
-    # ABA 1 — SIMULADOR DE PREVISÃO
+    # PÁGINA — SIMULADOR DE PREVISÃO
     # ====================================================================
-    with aba_pred:
+    if menu == "Previsão":
         st.subheader("Simule a probabilidade de inadimplência de um contrato")
         st.caption(
             "Preencha os campos abaixo com os dados do contrato. "
@@ -1234,68 +1270,87 @@ elif menu == "7. Previsão e Resultados do Modelo":
 
         st.markdown("---")
 
+        # Valores padrão do formulário = primeira linha do dataset
+        _row0 = df.iloc[0]
+
+        def _clamp(col, lo, hi):
+            return float(min(max(float(_row0[col]), lo), hi))
+
+        def _sel(label, options, col, **kw):
+            val = _row0[col]
+            return st.selectbox(
+                label, options,
+                index=options.index(val) if val in options else 0,
+                **kw,
+            )
+
         # ── Formulário de entrada ────────────────────────────────────────
         with st.form("form_predicao"):
             st.markdown("#### Dados do Cliente e Contrato")
             col_a, col_b, col_c = st.columns(3)
 
             with col_a:
-                customer_segment = st.selectbox(
+                customer_segment = _sel(
                     "Segmento do cliente",
                     ["AGRO_GRANDE", "AGRO_MEDIO", "AGRO_PEQUENO", "PF", "PJ_EPP", "PJ_GRANDE", "PJ_ME"],
+                    "customer_segment",
                 )
-                industry_sector = st.selectbox(
+                industry_sector = _sel(
                     "Setor da indústria",
                     ["COMERCIO", "GOVERNO", "INDUSTRIA", "PF", "RURAL", "SERVICOS"],
+                    "industry_sector",
                 )
                 income_declared = st.number_input(
                     "Renda declarada (R$)",
                     min_value=1_620.0, max_value=450_000.0,
-                    value=4_000.0, step=1.0,
+                    value=_clamp("income_declared", 1_620.0, 450_000.0), step=1.0,
                 )
                 credit_requested_value = st.number_input(
                     "Crédito solicitado (R$)",
                     min_value=100.0, max_value=200_000.0,
-                    value=10_000.0, step=1.0,
+                    value=_clamp("credit_requested_value", 100.0, 200_000.0), step=1.0,
                 )
                 tenure_months = st.number_input(
                     "Tempo de relacionamento (meses)",
-                    min_value=1, max_value=3000, value=120, step=1,
+                    min_value=1, max_value=3000,
+                    value=int(min(max(int(_row0["tenure_months"]), 1), 3000)), step=1,
                 )
 
             with col_b:
                 pd_model_score = st.number_input(
                     "Score PD (maior = mais arriscado)",
-                    min_value=0.0, max_value=1.0, value=0.300, step=0.001,
+                    min_value=0.0, max_value=1.0, value=_clamp("pd_model_score", 0.0, 1.0), step=0.001,
                     format="%.3f",
                 )
                 ltv = st.number_input(
                     "LTV",
-                    min_value=0.0, max_value=100.0, value=round(credit_requested_value / max(income_declared, 1), 4),
+                    min_value=0.0, max_value=100.0, value=_clamp("ltv", 0.0, 100.0),
                     step=0.01, format="%.4f",
                     help="Crédito solicitado ÷ Renda declarada. Acima de 1.0 = crédito supera a renda.",
                 )
-                collateral_type = st.selectbox(
+                collateral_type = _sel(
                     "Tipo de garantia",
                     ["CPR", "IMOVEL", "MAQUINARIO", "SEM_GARANTIA", "VEICULO"],
+                    "collateral_type",
                 )
 
             with col_c:
-                uf = st.selectbox(
+                uf = _sel(
                     "UF",
                     ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
                      'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN',
                      'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO'],
-                    index=13,
+                    "uf",
                 )
-                regiao = st.selectbox(
+                regiao = _sel(
                     "Região",
                     ['CO', 'N', 'NE', 'S', 'SE'],
-                    index=2,
+                    "regiao",
                 )
-                compliance_status = st.selectbox(
+                compliance_status = _sel(
                     "Status de compliance",
                     ["OK", "REVIEW"],
+                    "compliance_status",
                 )
 
             st.markdown("#### Dados Ambientais")
@@ -1306,7 +1361,7 @@ elif menu == "7. Previsão e Resultados do Modelo":
                 drought_spi_na = st.checkbox("SPI não disponível", value=False)
                 drought_spi = st.number_input(
                     "Índice de Seca (SPI)",
-                    min_value=-4.77, max_value=3.85, value=-0.20, step=0.01,
+                    min_value=-4.77, max_value=3.85, value=_clamp("drought_spi", -4.77, 3.85), step=0.01,
                     format="%.2f",
                     help="Abaixo de -1.5 = seca severa. Ignorado se marcado como não disponível.",
                 )
@@ -1315,25 +1370,26 @@ elif menu == "7. Previsão e Resultados do Modelo":
                 flood_risk_idx_na = st.checkbox("Inundação não disponível", value=False)
                 flood_risk_idx = st.number_input(
                     "Índice de risco de inundação",
-                    min_value=0.0, max_value=0.87, value=0.26, step=0.01,
+                    min_value=0.0, max_value=0.87, value=_clamp("flood_risk_idx", 0.0, 0.87), step=0.01,
                     format="%.2f",
                     help="Ignorado se marcado como não disponível.",
                 )
 
             with col_env3:
                 env_risk_level_na = st.checkbox("Risco ambiental não disponível", value=False)
-                env_risk_level = st.selectbox(
+                env_risk_level = _sel(
                     "Nível de risco ambiental",
                     ["BAIXO", "MEDIO", "ALTO"],
+                    "env_risk_level",
                     help="Ignorado se marcado como não disponível.",
                 )
 
             with col_env4:
                 bioma_na = st.checkbox("Bioma não disponível", value=False)
-                bioma = st.selectbox(
+                bioma = _sel(
                     "Bioma",
                     ["AMAZÔNIA", "CAATINGA", "CERRADO", "MATA ATLÂNTICA", "PAMPA", "PANTANAL"],
-                    index=2,
+                    "bioma",
                     help="Ignorado se marcado como não disponível.",
                 )
 
@@ -1341,43 +1397,50 @@ elif menu == "7. Previsão e Resultados do Modelo":
             col_d, col_e, col_f = st.columns(3)
 
             with col_d:
-                doc_type = st.selectbox(
+                doc_type = _sel(
                     "Tipo de documento",
                     ["CONTRATO", "DIVERGENTE", "EXTRATO", "LAUDO", "NF"],
+                    "doc_type",
                 )
-                ocr_engine = st.selectbox(
-                    "Motor OCR", ["AZURE_OCR", "GOOGLE_VISION", "TESSERACT"]
+                ocr_engine = _sel(
+                    "Motor OCR", ["AZURE_OCR", "GOOGLE_VISION", "TESSERACT"],
+                    "ocr_engine",
                 )
                 ocr_confidence = st.number_input(
-                    "Confiança OCR", min_value=0.0, max_value=1.0, value=0.701,
+                    "Confiança OCR", min_value=0.0, max_value=1.0,
+                    value=_clamp("ocr_confidence", 0.0, 1.0),
                     step=0.001, format="%.3f",
                 )
 
             with col_e:
                 match_score = st.number_input(
                     "Score de correspondência (match)", min_value=0.0, max_value=1.0,
-                    value=0.666, step=0.001, format="%.3f",
+                    value=_clamp("match_score", 0.0, 1.0), step=0.001, format="%.3f",
                 )
                 data_quality_score = st.number_input(
                     "Score de qualidade dos dados", min_value=0.0, max_value=1.0,
-                    value=0.719, step=0.001, format="%.3f",
+                    value=_clamp("data_quality_score", 0.0, 1.0), step=0.001, format="%.3f",
                 )
-                pii_detected = st.checkbox("PII detectado no documento", value=False)
+                pii_detected = st.checkbox(
+                    "PII detectado no documento", value=bool(_row0["pii_detected"]),
+                )
 
             with col_f:
                 rule_violations = st.number_input(
-                    "Violações de regras", min_value=0, max_value=9, value=1, step=1,
+                    "Violações de regras", min_value=0, max_value=9,
+                    value=int(min(max(int(_row0["rule_violations"]), 0), 9)), step=1,
                 )
                 document_image_quality = st.number_input(
                     "Qualidade da imagem do documento", min_value=0.0, max_value=1.0,
-                    value=0.726, step=0.001, format="%.3f",
+                    value=_clamp("document_image_quality", 0.0, 1.0), step=0.001, format="%.3f",
                 )
-                join_status = st.selectbox(
+                join_status = _sel(
                     "Status de junção de dados",
                     ["FULL_MATCH", "PARTIAL", "UNMATCHED"],
+                    "join_status",
                 )
 
-            submitted = st.form_submit_button("🔮 Calcular probabilidade de inadimplência", use_container_width=True)
+            submitted = st.form_submit_button("🔮 Calcular probabilidade de inadimplência", width='stretch')
 
         # ── Resultado da predição ────────────────────────────────────────
         if submitted:
@@ -1513,9 +1576,9 @@ elif menu == "7. Previsão e Resultados do Modelo":
                 st.success("Nenhum fator de risco crítico identificado para este contrato.")
 
     # ====================================================================
-    # ABA 2 — RESULTADOS DO MODELO
+    # PÁGINA — RESULTADOS DO MODELO
     # ====================================================================
-    with aba_modelo:
+    else:  # menu == "Resultados do Modelo"
         st.subheader("Comparativo de Modelos e Análise de Resultados")
         st.markdown("""
         Esta aba documenta os seis modelos treinados e justifica a escolha
@@ -1929,7 +1992,7 @@ de elevar o ROC-AUC para a faixa 0,65-0,72 em portfólios similares na literatur
 # ==========================================
 # PÁGINA 8: PERDAS POR INADIMPLÊNCIA
 # ==========================================
-elif menu == "8. Perdas por Inadimplência":
+elif menu == "Perdas por Inadimplência":
     st.title("💸 Perdas por Inadimplência")
 
     inadimplentes = df[df["default_12m"] == 1]
@@ -1966,12 +2029,12 @@ elif menu == "8. Perdas por Inadimplência":
         text="Label",
     )
     fig_cmp.update_layout(legend_title_text="", legend=dict(orientation="h", y=1.08))
-    st.plotly_chart(fig_cmp, use_container_width=True)
+    st.plotly_chart(fig_cmp, width='stretch')
 
 # ==========================================
 # PÁGINA 9: SIMULAÇÃO DE IMPACTO DO MODELO
 # ==========================================
-elif menu == "9. Simulação de Impacto do Modelo":
+elif menu == "Impacto do Modelo":
     st.title("💰 Simulação de Redução de Perdas com o Modelo")
 
     st.markdown("""
@@ -2045,9 +2108,12 @@ elif menu == "9. Simulação de Impacto do Modelo":
     ideal_idx    = int(np.argmax(profit_arr))
     ideal_recall = float(rec_arr[ideal_idx])
 
-    # Reset recall slider to new optimal whenever margin or the selected subset changes
+    # Reset recall slider to new optimal whenever margin or the selected subset
+    # changes (and seed it on first render). The widget value is driven solely
+    # by the session-state key, so it must NOT also pass `value=`.
     _p9_context = (margin_rate, sel_segmento, sel_setor)
-    if st.session_state.get("_p9_prev_ctx") != _p9_context:
+    if (st.session_state.get("_p9_prev_ctx") != _p9_context
+            or "_p9_recall" not in st.session_state):
         st.session_state["_p9_recall"] = ideal_recall
         st.session_state["_p9_prev_ctx"] = _p9_context
 
@@ -2056,7 +2122,6 @@ elif menu == "9. Simulação de Impacto do Modelo":
             "Recall (sensibilidade do modelo)",
             min_value=0.0,
             max_value=float(rec_arr.max()),
-            value=ideal_recall,
             step=0.01,
             key="_p9_recall",
             help="Fração dos inadimplentes reais identificados corretamente neste limiar.",
@@ -2134,4 +2199,4 @@ elif menu == "9. Simulação de Impacto do Modelo":
         yaxis=dict(title="Lucro (R$)", tickformat=",.0f"),
         legend=dict(orientation="h", y=-0.2),
     )
-    st.plotly_chart(fig_profit, use_container_width=True)
+    st.plotly_chart(fig_profit, width='stretch')

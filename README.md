@@ -19,7 +19,7 @@ e um dashboard interativo em Streamlit com simulador de previsão de inadimplên
 ```
 BB_data_analysis/
 ├── config.py                          # Constantes de Path (importar em vez de hardcode)
-├── streamlit_app.py                   # Dashboard (7 páginas)
+├── streamlit_app.py                   # Dashboard (10 páginas em 2 seções)
 ├── requirements.txt
 ├── data/
 │   ├── raw/                           # Dados originais (não modificar)
