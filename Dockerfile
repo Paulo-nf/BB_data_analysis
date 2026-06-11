@@ -1,19 +1,19 @@
-# Dockerfile
-
 FROM python:3.12-slim
 
-WORKDIR /
+# Using /app is safer than the root directory /
+WORKDIR /app
 
+# Removed software-properties-common to fix exit code 100
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/Paulo-nf/BB_data_analysis/tree/docker .
+# Fixed git clone syntax to properly target the 'docker' branch
+RUN git clone -b docker https://github.com/Paulo-nf/BB_data_analysis.git .
 
-RUN pip3 install -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 EXPOSE 8501
 
