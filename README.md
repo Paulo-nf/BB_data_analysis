@@ -1,4 +1,4 @@
-# Análise de Dados e Previsão de Inadimplência — Databridge Squad 19
+# AAnálise de Dados e Previsão de Inadimplência — Databridge Squad 19
 
 ## Descrição
 
